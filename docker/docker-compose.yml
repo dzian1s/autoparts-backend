@@ -1,0 +1,14 @@
+services:
+  db:
+    image: postgres:16
+    container_name: autoparts_db
+    environment:
+      POSTGRES_DB: autoparts
+      POSTGRES_USER: autoparts
+      POSTGRES_PASSWORD: autoparts
+    ports:
+      - "5432:5432"
+    volumes:
+      - autoparts_pgdata:/var/lib/postgresql/data
+volumes:
+  autoparts_pgdata:
