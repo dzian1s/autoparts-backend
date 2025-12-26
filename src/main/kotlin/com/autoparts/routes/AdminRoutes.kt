@@ -16,7 +16,9 @@ fun Application.registerAdminRoutes() {
     val repo = ProductRepository()
 
     routing {
-        
+
+
+
         staticResources("/static", "static")
 
         route("/admin") {
