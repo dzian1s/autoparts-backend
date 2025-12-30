@@ -1,6 +1,7 @@
 package com.autoparts
 
 import com.autoparts.db.DatabaseFactory
+import com.autoparts.routes.configureRouting
 import io.ktor.server.application.*
 import io.ktor.server.netty.EngineMain
 import com.autoparts.routes.registerAdminRoutes

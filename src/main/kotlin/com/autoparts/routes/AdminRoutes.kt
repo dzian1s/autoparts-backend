@@ -17,8 +17,6 @@ fun Application.registerAdminRoutes() {
 
     routing {
 
-
-
         staticResources("/static", "static")
 
         route("/admin") {

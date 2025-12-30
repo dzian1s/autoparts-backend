@@ -36,10 +36,11 @@ dependencies {
     implementation("com.zaxxer:HikariCP:5.1.0")
     implementation("org.flywaydb:flyway-core:10.17.0")
 
-    // Exposed (ORM на Kotlin)
+    // Exposed (ORM Kotlin)
     implementation("org.jetbrains.exposed:exposed-core:0.55.0")
     implementation("org.jetbrains.exposed:exposed-dao:0.55.0")
     implementation("org.jetbrains.exposed:exposed-jdbc:0.55.0")
+    implementation("org.jetbrains.exposed:exposed-java-time:0.55.0")
 
     // Password hashing
     implementation("org.mindrot:jbcrypt:0.4")
