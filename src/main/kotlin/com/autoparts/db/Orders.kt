@@ -7,9 +7,10 @@ import org.jetbrains.exposed.sql.javatime.timestampWithTimeZone
 object Orders : UUIDTable("orders") {
     val createdAt = timestampWithTimeZone("created_at")
     val status = text("status")
-    val customerName = text("customer_name").nullable()
-    val customerPhone = text("customer_phone").nullable()
+    val customerName = text("customer_name")
+    val customerPhone = text("customer_phone")
     val customerComment = text("customer_comment").nullable()
+    val clientId = uuid("client_id").nullable()
 }
 
 object OrderItems : UUIDTable("order_items") {

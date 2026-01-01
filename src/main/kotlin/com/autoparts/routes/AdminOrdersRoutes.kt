@@ -1,12 +1,11 @@
 package com.autoparts.routes
 
 import com.autoparts.repo.OrderRepository
-import io.ktor.server.application.*
-import io.ktor.server.response.*
-import io.ktor.server.request.*
-import io.ktor.server.routing.*
 import io.ktor.http.*
-import java.util.UUID
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import java.util.*
 
 fun Route.adminOrdersRoutes(orderRepo: OrderRepository) {
 

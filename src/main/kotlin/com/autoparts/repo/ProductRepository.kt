@@ -2,6 +2,7 @@ package com.autoparts.repo
 
 import com.autoparts.api.CreateProductRequest
 import com.autoparts.api.ProductDto
+import com.autoparts.api.SearchResponseDto
 import com.autoparts.db.ProductCrossRefs
 import com.autoparts.db.Products
 import com.autoparts.db.dbQuery
@@ -13,6 +14,10 @@ import java.util.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 
 class ProductRepository {
+
+    private fun normPart(s: String): String =
+        s.uppercase()
+            .replace(Regex("[^A-Z0-9]"), "")
 
     suspend fun list(limit: Int, offset: Long): List<ProductDto> = dbQuery {
         Products
@@ -105,78 +110,118 @@ class ProductRepository {
             .toDto()
     }
 
-    /**
-     * Улучшенный поиск:
-     * 1) exact по part/oem/crossrefs
-     * 2) full-text (tsvector)
-     * 3) fuzzy trigram
-     */
-    suspend fun searchAuto(qRaw: String, limit: Int = 20): Pair<String, List<ProductDto>> = dbQuery {
+    private fun pid(uuid: UUID) = EntityID(uuid, Products)
+
+    suspend fun searchAuto(qRaw: String, limit: Int = 20): SearchResponseDto = dbQuery {
+
         val q = qRaw.trim()
-        if (q.isEmpty()) return@dbQuery "empty" to emptyList()
+        if (q.isEmpty()) return@dbQuery SearchResponseDto("empty", emptyList())
 
-        // --- 1) EXACT (без deprecated slice/select) ---
-        val exactFromProducts: List<UUID> =
-            Products
-                .select(Products.id)
-                .where { (Products.partNumber eq q) or (Products.oemNumber eq q) }
-                .map { it[Products.id].value }
+        val qNorm = normPart(q)
+        val looksLikePart = qNorm.length >= 4
 
-        val exactFromCrossRefs: List<UUID> =
-            ProductCrossRefs
-                .select(ProductCrossRefs.productId)
-                .where { ProductCrossRefs.refValue eq q }
-                .map { it[ProductCrossRefs.productId] }
+        val exactIds: List<EntityID<UUID>> = (
+                Products
+                    .select(Products.id)
+                    .where {
+                        val prefixOp: Op<Boolean> =
+                            if (looksLikePart) (Products.partNumberNorm like "$qNorm%") else Op.FALSE
 
-        val exactIds = (exactFromProducts + exactFromCrossRefs).distinct()
+                        (Products.partNumberNorm eq qNorm) or
+                                (Products.oemNumberNorm eq qNorm) or
+                                prefixOp
+                    }
+                    .map { it[Products.id] } // <-- EntityID<UUID>
+                        +
+                        ProductCrossRefs
+                            .select(ProductCrossRefs.productId)
+                            .where { ProductCrossRefs.refValueNorm eq qNorm }
+                            .map { it[ProductCrossRefs.productId] } // <-- EntityID<UUID>
+                ).distinct() as List<EntityID<UUID>>
 
         if (exactIds.isNotEmpty()) {
             val items = Products
                 .selectAll()
-                .where { Products.id inList exactIds.map { EntityID(it, Products) } }
+                .where { Products.id inList exactIds }
                 .limit(limit)
                 .map { it.toDto() }
 
-            return@dbQuery "exact" to items
+            return@dbQuery SearchResponseDto("exact", items)
         }
 
-        // --- 2) FULL-TEXT ---
-        val ftsSql = """
-    SELECT id, name, description, part_number, oem_number, price_cents, is_active
-    FROM products
-    WHERE search_vector @@ websearch_to_tsquery('simple', ?)
-    ORDER BY ts_rank(search_vector, websearch_to_tsquery('simple', ?)) DESC
-    LIMIT ?
-""".trimIndent()
+        // ---------------- 2) FULL-TEXT ----------------
+        // FTS имеет смысл для "слов", но хуже для артикулов и коротких строк
+        val skipFts = looksLikePart || q.length < 3
+        if (!skipFts) {
+            fun ftsMatch(qText: String): Op<Boolean> = object : Op<Boolean>() {
+                override fun toQueryBuilder(queryBuilder: QueryBuilder) {
+                    queryBuilder.append("search_vector @@ websearch_to_tsquery('simple', ")
+                    queryBuilder.append(stringParam(qText))
+                    queryBuilder.append(")")
+                }
+            }
 
-        val fts = queryProducts(ftsSql) { ps ->
-            ps.setString(1, q)
-            ps.setString(2, q)
-            ps.setInt(3, limit)
+            fun ftsRank(qText: String): Expression<Double> = object : Expression<Double>() {
+                override fun toQueryBuilder(queryBuilder: QueryBuilder) {
+                    queryBuilder.append("ts_rank(search_vector, websearch_to_tsquery('simple', ")
+                    queryBuilder.append(stringParam(qText))
+                    queryBuilder.append("))")
+                }
+            }
+
+            val ftsItems = Products
+                .selectAll()
+                .where { ftsMatch(q) }
+                .orderBy(ftsRank(q) to SortOrder.DESC, Products.name to SortOrder.ASC)
+                .limit(limit)
+                .map { it.toDto() }
+
+            if (ftsItems.isNotEmpty()) return@dbQuery SearchResponseDto("fts", ftsItems)
         }
 
-        if (fts.isNotEmpty()) return@dbQuery "fts" to fts
+        // ---------------- 3) FUZZY (pg_trgm) ----------------
+        if (q.length < 3) return@dbQuery SearchResponseDto("fuzzy", emptyList())
 
-// --- 3) FUZZY (trigram) ---
-        val fuzzySql = """
-    SELECT id, name, description, part_number, oem_number, price_cents, is_active
-    FROM products
-    WHERE (similarity(name, ?) > 0.2) OR (similarity(part_number, ?) > 0.2)
-    ORDER BY GREATEST(similarity(name, ?), similarity(part_number, ?)) DESC
-    LIMIT ?
-""".trimIndent()
-
-        val fuzzy = queryProducts(fuzzySql) { ps ->
-            ps.setString(1, q)
-            ps.setString(2, q)
-            ps.setString(3, q)
-            ps.setString(4, q)
-            ps.setInt(5, limit)
+        // чем короче строка — тем выше порог, иначе будет мусор
+        val thr = when (q.length) {
+            3 -> 0.35
+            4 -> 0.30
+            5, 6 -> 0.25
+            else -> 0.20
         }
 
-        "fuzzy" to fuzzy
+        fun fuzzyWhere(qText: String): Op<Boolean> = object : Op<Boolean>() {
+            override fun toQueryBuilder(queryBuilder: QueryBuilder) {
+                queryBuilder.append("(")
+                queryBuilder.append("similarity(name, "); queryBuilder.append(stringParam(qText)); queryBuilder.append(") > $thr")
+                queryBuilder.append(" OR similarity(part_number_norm, "); queryBuilder.append(stringParam(qText)); queryBuilder.append(") > $thr")
+                queryBuilder.append(" OR similarity(oem_number_norm, "); queryBuilder.append(stringParam(qText)); queryBuilder.append(") > $thr")
+                queryBuilder.append(")")
+            }
+        }
 
+        fun fuzzyScore(qText: String): Expression<Double> = object : Expression<Double>() {
+            override fun toQueryBuilder(queryBuilder: QueryBuilder) {
+                queryBuilder.append("GREATEST(")
+                queryBuilder.append("similarity(name, "); queryBuilder.append(stringParam(qText)); queryBuilder.append("), ")
+                queryBuilder.append("similarity(part_number_norm, "); queryBuilder.append(stringParam(qText)); queryBuilder.append("), ")
+                queryBuilder.append("similarity(oem_number_norm, "); queryBuilder.append(stringParam(qText)); queryBuilder.append(")")
+                queryBuilder.append(")")
+            }
+        }
+
+        val fuzzyItems = Products
+            .selectAll()
+            .where { fuzzyWhere(q) }
+            .orderBy(fuzzyScore(q) to SortOrder.DESC, Products.name to SortOrder.ASC)
+            .limit(limit)
+            .map { it.toDto() }
+
+        SearchResponseDto("fuzzy", fuzzyItems)
     }
+
+
+    private fun stringParam(value: String) = QueryParameter(value, TextColumnType())
 
     private fun ResultRow.toDto(): ProductDto = ProductDto(
         id = this[Products.id].value.toString(),

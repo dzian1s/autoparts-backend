@@ -32,7 +32,7 @@ fun Application.registerAdminRoutes() {
                 val items = if (q.isBlank()) {
                     repo.list(limit = 50, offset = 0)
                 } else {
-                    repo.searchAuto(q, limit = 50).second
+                    repo.searchAuto(q, limit = 50).items
                 }
 
                 call.respondHtml(HttpStatusCode.OK) {

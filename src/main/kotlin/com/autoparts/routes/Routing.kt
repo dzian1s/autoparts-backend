@@ -42,9 +42,10 @@ fun Application.configureRouting() {
                 }
             }
             get("/search") {
-                val q = call.request.queryParameters["q"] ?: ""
-                val (mode, items) = repo.searchAuto(q)
-                call.respond(SearchResponseDto(mode = mode, items = items))
+                val q = call.request.queryParameters["q"].orEmpty()
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 20
+                val res = ProductRepository().searchAuto(q, limit)
+                call.respond(res)
             }
             post("/orders") {
                 val req = call.receive<CreateOrderRequest>()

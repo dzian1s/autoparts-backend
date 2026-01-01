@@ -11,7 +11,7 @@ data class ProductDto(
     val partNumber: String,
     val oemNumber: String,
     val priceCents: Int,
-    val isActive: Boolean
+    val isActive: Boolean,
 )
 
 @Serializable
@@ -22,13 +22,14 @@ data class CreateProductRequest(
     val oemNumber: String = "",
     val priceCents: Int,
     val isActive: Boolean = true,
-    val crossRefs: List<String> = emptyList() // просто список номеров-аналоги
+    val crossRefs: List<String> = emptyList(),// просто список номеров-аналоги
 )
 
 @Serializable
 data class SearchResponseDto(
     val mode: String,
-    val items: List<ProductDto>
+    val items: List<ProductDto>,
+
 )
 
 @Serializable
@@ -37,7 +38,7 @@ data class OrderListItemDto(
     val createdAt: String,
     val status: String,
     val customerName: String? = null,
-    val customerPhone: String? = null
+    val customerPhone: String? = null,
 )
 
 @Serializable
@@ -45,7 +46,7 @@ data class OrderItemDto(
     val productId: String,
     val name: String,
     val qty: Int,
-    val priceCents: Int
+    val priceCents: Int,
 )
 
 @Serializable
@@ -53,8 +54,8 @@ data class OrderDetailsDto(
     val id: String,
     val createdAt: String,
     val status: String,
-    val customerName: String? = null,
-    val customerPhone: String? = null,
+    val customerName: String,
+    val customerPhone: String,
     val customerComment: String? = null,
-    val items: List<OrderItemDto>
+    val items: List<OrderItemDto>,
 )

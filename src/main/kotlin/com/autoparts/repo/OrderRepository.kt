@@ -67,6 +67,8 @@ class OrderRepository {
 
         suspend fun create(req: CreateOrderRequest): UUID = dbQuery {
         require(req.items.isNotEmpty()) { "Order items must not be empty" }
+        require(req.customerName.isNotBlank()) { "customerName is required" }
+        require(req.customerPhone.isNotBlank()) { "customerPhone is required" }
 
         // 1) нормализуем items
         val normalized: List<Pair<UUID, Int>> = req.items.map { itx ->
@@ -123,5 +125,4 @@ class OrderRepository {
             it[Orders.status] = status
         } > 0
     }
-
 }

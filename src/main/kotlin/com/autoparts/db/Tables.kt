@@ -21,10 +21,15 @@ object Products : UUIDTable("products") {
     val oemNumber = text("oem_number")
     val priceCents = integer("price_cents")
     val isActive = bool("is_active")
+    val partNumberNorm = text("part_number_norm")
+    val oemNumberNorm = text("oem_number_norm")
+
 }
 
 object ProductCrossRefs : UUIDTable("product_cross_refs") {
     val productId = uuid("product_id").references(Products.id, onDelete = ReferenceOption.CASCADE)
     val refType = text("ref_type")
     val refValue = text("ref_value")
+    val refValueNorm = text("ref_value_norm")
+
 }

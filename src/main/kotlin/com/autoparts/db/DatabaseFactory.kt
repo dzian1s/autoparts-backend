@@ -12,11 +12,12 @@ object DatabaseFactory {
         val user = config.property("db.user").getString()
         val password = config.property("db.password").getString()
 
-        Flyway.configure()
+        val flyway = Flyway.configure()
             .dataSource(jdbcUrl, user, password)
             .locations("classpath:db/migration")
             .load()
-            .migrate()
+
+        flyway.migrate()
 
         val hikari = HikariConfig().apply {
             this.jdbcUrl = jdbcUrl
