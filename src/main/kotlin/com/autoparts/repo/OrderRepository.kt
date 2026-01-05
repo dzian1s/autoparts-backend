@@ -7,6 +7,7 @@ import com.autoparts.api.OrderListItemDto
 import com.autoparts.db.*
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.sql.*
+import java.time.OffsetDateTime
 import java.util.UUID
 
 class OrderRepository {
@@ -97,6 +98,7 @@ class OrderRepository {
 
         // 3) orders
         val newOrderId = UUID.randomUUID()
+        val clientUuid = req.clientId?.let { UUID.fromString(it) }
 
         Orders.insert {
             it[Orders.id] = EntityID(newOrderId, Orders)
@@ -105,6 +107,8 @@ class OrderRepository {
             it[Orders.customerName] = req.customerName
             it[Orders.customerPhone] = req.customerPhone
             it[Orders.customerComment] = req.customerComment
+            it[createdAt] = OffsetDateTime.now()
+            it[clientId] = clientUuid
         }
 
         // 4) order_items (orderId/productId через reference => EntityID)
@@ -119,6 +123,32 @@ class OrderRepository {
         }
             newOrderId
     }
+
+    suspend fun listByClient(
+        clientId: UUID,
+        limit: Int,
+        offset: Long
+    ): List<OrderListItemDto> = dbQuery {
+
+        val cid: UUID? = clientId // Orders.clientId is nullable
+
+        Orders
+            .selectAll()
+            .where { Orders.clientId eq cid }
+            .orderBy(Orders.createdAt to SortOrder.DESC)
+            .limit(limit, offset = offset)
+            .map { row ->
+                OrderListItemDto(
+                    id = row[Orders.id].value.toString(),
+                    createdAt = row[Orders.createdAt].toString(),
+                    status = row[Orders.status],
+                    customerName = row[Orders.customerName],
+                    customerPhone = row[Orders.customerPhone]
+                )
+            }
+    }
+
+
     suspend fun updateStatus(id: UUID, status: String): Boolean = dbQuery {
         val oid = EntityID(id, Orders)
         Orders.update({ Orders.id eq oid }) {

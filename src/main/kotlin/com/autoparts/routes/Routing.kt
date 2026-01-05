@@ -70,6 +70,19 @@ fun Application.configureRouting() {
 
                 call.respond(order)
             }
+
+            get("/orders/by-client/{clientId}") {
+                val clientIdStr = call.parameters["clientId"]
+                    ?: return@get call.respondText("Missing clientId", status = HttpStatusCode.BadRequest)
+
+                val clientUuid = runCatching { UUID.fromString(clientIdStr) }.getOrNull()
+                    ?: return@get call.respondText("Bad clientId", status = HttpStatusCode.BadRequest)
+
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 50
+                val offset = call.request.queryParameters["offset"]?.toLongOrNull() ?: 0
+
+                call.respond(orderRepo.listByClient(clientUuid, limit, offset))
+            }
         }
         adminOrdersRoutes(orderRepo)
     }
