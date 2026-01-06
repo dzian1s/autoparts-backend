@@ -1,7 +1,5 @@
 package com.autoparts.routes
 
-import CreateOrderRequest
-import CreateOrderResponse
 import com.autoparts.api.*
 import com.autoparts.repo.*
 import io.ktor.http.HttpStatusCode
@@ -24,7 +22,7 @@ fun Application.configureRouting() {
             }
 
             get("/products"){
-                val items = repo.list(limit = 100, offset = 0) // пока без пагинации
+                val items = repo.list(limit = 100, offset = 0)
                 call.respond(items)
             }
 
@@ -86,5 +84,4 @@ fun Application.configureRouting() {
         }
         adminOrdersRoutes(orderRepo)
     }
-
 }

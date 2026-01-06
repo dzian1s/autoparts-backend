@@ -21,12 +21,10 @@ fun Application.registerAdminRoutes() {
 
         route("/admin") {
 
-            // Главная админки -> редирект на товары
             get {
                 call.respondRedirect("/admin/products")
             }
 
-            // Список товаров + быстрый поиск
             get("/products") {
                 val q = call.request.queryParameters["q"]?.trim().orEmpty()
                 val items = if (q.isBlank()) {
@@ -42,6 +40,7 @@ fun Application.registerAdminRoutes() {
                     }
                     body {
                         div("container") {
+                            adminNav("products")
                             h1 { +"Products (micro-admin)" }
 
                             div("row") {
@@ -87,7 +86,6 @@ fun Application.registerAdminRoutes() {
                 }
             }
 
-            // Форма добавления
             get("/products/new") {
                 call.respondHtml(HttpStatusCode.OK) {
                     head {
@@ -96,6 +94,7 @@ fun Application.registerAdminRoutes() {
                     }
                     body {
                         div ("container") {
+                            adminNav("products")
                             h1 { +"Add product" }
 
                             form(action = "/admin/products/new", method = FormMethod.post) {
@@ -143,7 +142,6 @@ fun Application.registerAdminRoutes() {
                 }
             }
 
-            // Обработка формы
             post("/products/new") {
                 val form = call.receiveParameters()
 
@@ -196,6 +194,7 @@ fun Application.registerAdminRoutes() {
                     }
                     body {
                         div ("container"){
+                            adminNav("products")
                             h1 { +"Edit product" }
 
                             form(action = "/admin/products/$idStr/edit", method = FormMethod.post) {
@@ -301,5 +300,19 @@ fun Application.registerAdminRoutes() {
                 call.respondRedirect("/admin/products")
             }
         }
+    }
+}
+
+private fun FlowContent.adminNav(active: String) {
+    nav(classes = "admin-nav") {
+        a(
+            href = "/admin/products",
+            classes = "nav-link" + if (active == "products") " active" else ""
+        ) { +"Products" }
+
+        a(
+            href = "/admin/orders",
+            classes = "nav-link" + if (active == "orders") " active" else ""
+        ) { +"Orders" }
     }
 }

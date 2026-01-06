@@ -1,34 +1,90 @@
 package com.autoparts.repo
 
-import CreateOrderRequest
-import com.autoparts.api.OrderDetailsDto
-import com.autoparts.api.OrderItemDto
-import com.autoparts.api.OrderListItemDto
+import com.autoparts.api.*
 import com.autoparts.db.*
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.sql.*
 import java.time.OffsetDateTime
-import java.util.UUID
+import java.util.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.times
 
 class OrderRepository {
 
-        suspend fun list(limit: Int = 50, offset: Long = 0): List<OrderListItemDto> = dbQuery {
-            Orders
-                .selectAll()
-                .orderBy(Orders.createdAt to SortOrder.DESC)
-                .limit(limit, offset = offset)
-                .map { row ->
-                    OrderListItemDto(
-                        id = row[Orders.id].value.toString(),
-                        createdAt = row[Orders.createdAt].toString(),
-                        status = row[Orders.status],
-                        customerName = row[Orders.customerName],
-                        customerPhone = row[Orders.customerPhone]
-                    )
-                }
-        }
+    suspend fun list(limit: Int = 50, offset: Long = 0): List<OrderListItemDto> = dbQuery {
+        val itemsCountExpr = OrderItems.qty.sum()
+        val totalCentsExpr = Sum(OrderItems.qty * OrderItems.priceCents, IntegerColumnType())
 
-        suspend fun get(id: UUID): OrderDetailsDto? = dbQuery {
+        (Orders leftJoin OrderItems)
+            .select(
+                Orders.id,
+                Orders.createdAt,
+                Orders.status,
+                Orders.customerName,
+                Orders.customerPhone,
+                itemsCountExpr,
+                totalCentsExpr
+            )
+            .groupBy(
+                Orders.id,
+                Orders.createdAt,
+                Orders.status,
+                Orders.customerName,
+                Orders.customerPhone
+            )
+            .orderBy(Orders.createdAt to SortOrder.DESC)
+            .limit(limit, offset = offset)
+            .map { row ->
+                OrderListItemDto(
+                    id = row[Orders.id].value.toString(),
+                    createdAt = row[Orders.createdAt].toString(),
+                    status = row[Orders.status],
+                    customerName = row[Orders.customerName],
+                    customerPhone = row[Orders.customerPhone],
+                    itemsCount = row[itemsCountExpr] ?: 0,
+                    totalCents = row[totalCentsExpr] ?: 0
+                )
+            }
+    }
+
+    suspend fun listByClient(clientId: UUID, limit: Int, offset: Long): List<OrderListItemDto> = dbQuery {
+        val itemsCountExpr = OrderItems.qty.sum()
+        val totalCentsExpr = Sum(OrderItems.qty * OrderItems.priceCents, IntegerColumnType())
+        val cid: UUID? = clientId
+
+        (Orders leftJoin OrderItems)
+            .select(
+                Orders.id,
+                Orders.createdAt,
+                Orders.status,
+                Orders.customerName,
+                Orders.customerPhone,
+                itemsCountExpr,
+                totalCentsExpr
+            )
+            .where { Orders.clientId eq cid }
+            .groupBy(
+                Orders.id,
+                Orders.createdAt,
+                Orders.status,
+                Orders.customerName,
+                Orders.customerPhone
+            )
+            .orderBy(Orders.createdAt to SortOrder.DESC)
+            .limit(limit, offset = offset)
+            .map { row ->
+                OrderListItemDto(
+                    id = row[Orders.id].value.toString(),
+                    createdAt = row[Orders.createdAt].toString(),
+                    status = row[Orders.status],
+                    customerName = row[Orders.customerName],
+                    customerPhone = row[Orders.customerPhone],
+                    itemsCount = row[itemsCountExpr] ?: 0,
+                    totalCents = row[totalCentsExpr] ?: 0
+                )
+            }
+    }
+
+    suspend fun get(id: UUID): OrderDetailsDto? = dbQuery {
             val oid = EntityID(id, Orders)
 
             val head = Orders
@@ -65,13 +121,12 @@ class OrderRepository {
             )
         }
 
-
         suspend fun create(req: CreateOrderRequest): UUID = dbQuery {
         require(req.items.isNotEmpty()) { "Order items must not be empty" }
         require(req.customerName.isNotBlank()) { "customerName is required" }
         require(req.customerPhone.isNotBlank()) { "customerPhone is required" }
 
-        // 1) нормализуем items
+        // 1) normalization
         val normalized: List<Pair<UUID, Int>> = req.items.map { itx ->
             val pid = runCatching { UUID.fromString(itx.productId) }.getOrNull()
                 ?: throw IllegalArgumentException("Bad productId: ${itx.productId}")
@@ -79,7 +134,7 @@ class OrderRepository {
             pid to itx.qty
         }
 
-        // 2) цены из БД (key = UUID)
+        // 2) prices
         val productIds = normalized.map { it.first }.distinct()
         val productEntityIds = productIds.map { EntityID(it, Products) }
 
@@ -111,7 +166,7 @@ class OrderRepository {
             it[clientId] = clientUuid
         }
 
-        // 4) order_items (orderId/productId через reference => EntityID)
+        // 4) order_items
         normalized.forEach { (pid, qty) ->
             OrderItems.insert {
                 it[OrderItems.id] = UUID.randomUUID()
@@ -123,31 +178,6 @@ class OrderRepository {
         }
             newOrderId
     }
-
-    suspend fun listByClient(
-        clientId: UUID,
-        limit: Int,
-        offset: Long
-    ): List<OrderListItemDto> = dbQuery {
-
-        val cid: UUID? = clientId // Orders.clientId is nullable
-
-        Orders
-            .selectAll()
-            .where { Orders.clientId eq cid }
-            .orderBy(Orders.createdAt to SortOrder.DESC)
-            .limit(limit, offset = offset)
-            .map { row ->
-                OrderListItemDto(
-                    id = row[Orders.id].value.toString(),
-                    createdAt = row[Orders.createdAt].toString(),
-                    status = row[Orders.status],
-                    customerName = row[Orders.customerName],
-                    customerPhone = row[Orders.customerPhone]
-                )
-            }
-    }
-
 
     suspend fun updateStatus(id: UUID, status: String): Boolean = dbQuery {
         val oid = EntityID(id, Orders)

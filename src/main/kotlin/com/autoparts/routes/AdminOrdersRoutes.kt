@@ -43,6 +43,10 @@ private fun buildOrdersListHtml(orders: List<com.autoparts.api.OrderListItemDto>
   <title>Orders</title>
 </head>
 <body>
+<nav class="admin-nav">
+  <a class="nav-link" href="/admin/products">Products</a>
+  <a class="nav-link active" href="/admin/orders">Orders</a>
+</nav>
 <div class="container">
   <h1>Orders</h1>
   <table class="table">
@@ -76,6 +80,10 @@ private fun buildOrderDetailsHtml(o: com.autoparts.api.OrderDetailsDto): String 
   <title>Order ${o.id}</title>
 </head>
 <body>
+<nav class="admin-nav">
+  <a class="nav-link" href="/admin/products">Products</a>
+  <a class="nav-link active" href="/admin/orders">Orders</a>
+</nav>
 <div class="container">
   <a class="btn" href="/admin/orders">← Back</a>
   <h1>Order</h1>

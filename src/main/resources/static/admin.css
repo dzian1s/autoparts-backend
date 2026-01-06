@@ -99,3 +99,26 @@ th {
     gap: 12px;
     align-items: center;
 }
+
+.admin-nav {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 10px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--soft);
+}
+
+.admin-nav .nav-link {
+    text-decoration: none;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    color: var(--text);
+}
+
+.admin-nav .nav-link.active {
+    background: var(--btn);
+    color: var(--btnText);
+}

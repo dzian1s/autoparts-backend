@@ -1,7 +1,6 @@
 package com.autoparts.api
 
 import kotlinx.serialization.Serializable
-import java.util.UUID
 
 @Serializable
 data class ProductDto(
@@ -22,40 +21,12 @@ data class CreateProductRequest(
     val oemNumber: String = "",
     val priceCents: Int,
     val isActive: Boolean = true,
-    val crossRefs: List<String> = emptyList(),// просто список номеров-аналоги
+    val crossRefs: List<String> = emptyList(),
 )
 
 @Serializable
 data class SearchResponseDto(
     val mode: String,
     val items: List<ProductDto>,
-
 )
 
-@Serializable
-data class OrderListItemDto(
-    val id: String,
-    val createdAt: String,
-    val status: String,
-    val customerName: String? = null,
-    val customerPhone: String? = null,
-)
-
-@Serializable
-data class OrderItemDto(
-    val productId: String,
-    val name: String,
-    val qty: Int,
-    val priceCents: Int,
-)
-
-@Serializable
-data class OrderDetailsDto(
-    val id: String,
-    val createdAt: String,
-    val status: String,
-    val customerName: String,
-    val customerPhone: String,
-    val customerComment: String? = null,
-    val items: List<OrderItemDto>,
-)
